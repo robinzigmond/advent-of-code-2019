@@ -9,7 +9,7 @@ import Data.Text (Text)
 import qualified Data.Text.IO as TIO (readFile)
 import Data.Vector (Vector, (!), (//))
 
-import Day5 (parseFile, Mode(..), Pos, Output, Instruction(..), getInput, getInstruction)
+import Day5 (parseFile, Pos, Output, Instruction(..), getInput, getInstruction)
 
 
 puzzleData :: IO (Vector Int)
