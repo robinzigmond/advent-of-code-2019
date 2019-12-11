@@ -26,6 +26,7 @@ dependencies:
 - mtl
 - containers
 - ghc
+- microlens-platform
 
 library:
   source-dirs: src
