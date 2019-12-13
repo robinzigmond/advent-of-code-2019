@@ -11,6 +11,7 @@ import qualified Day8
 import qualified Day9
 import qualified Day10
 import qualified Day11
+import qualified Day12
 
 
 main :: IO ()
@@ -61,3 +62,7 @@ main = do
     putStrLn "Here is the picture for Day 11, Part 2:"
     pictureRows <- Day11.drawPart2
     mapM_ putStrLn pictureRows
+    putStr "The answer to Day 12, Part 1 is "
+    Day12.part1 >>= print
+    putStr "The answer to Day 12, Part 2 is "
+    Day12.part2 >>= print

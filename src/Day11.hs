@@ -186,7 +186,7 @@ paintCycle input = go False
                                         0 -> do
                                             newDir <- robotDirection <%= turnLeft
                                             robotPosition %= robotMove newDir
-                                        1 ->do
+                                        1 -> do
                                             newDir <- robotDirection <%= turnRight
                                             robotPosition %= robotMove newDir
                                         _ -> error "got an output that wasn't 0 or 1!"
