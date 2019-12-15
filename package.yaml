@@ -27,6 +27,7 @@ dependencies:
 - containers
 - ghc
 - microlens-platform
+- unordered-containers
 
 library:
   source-dirs: src
