@@ -90,7 +90,7 @@ stateMachine = do
         Input mode -> do
             case inputList of
                 [] -> error "ran out of joystick inputs!"
-                (i:is) -> do
+                (i:is) -> trace "reading input now" $ do
                     let outputPos = getOutputPos vect relative mode $ pos + 1
                     let newVect = updateVector outputPos (toInteger i) vect
                     program .= newVect
@@ -203,10 +203,10 @@ playGame = go Nothing Nothing Nothing
                                 Nothing -> go maybeX (Just output) maybeTile
                                 Just y -> case maybeTile of
                                     Nothing -> if x == -1 && y == 0
-                                        then do
+                                        then traceShow (fromInteger x, fromInteger y, fromInteger output) $ do
                                             gameScore .= fromInteger output
                                             return False
-                                        else do
+                                        else traceShow (fromInteger x, fromInteger y, toEnum $ fromInteger output :: Tile) $ do
                                             gameState %= M.insert (fromInteger x, fromInteger y)
                                                 (toEnum $ fromInteger output)
                                             return False
@@ -261,3 +261,19 @@ solvePart2 v = go 0
 
 part2 :: IO Int
 part2 = puzzleData >>= return . solvePart2
+
+-- making progress now, just by including the above debug statements and watching the output. Things to note:
+-- 1) This really does simulate a breakout game!
+-- 2) The score does increase when you destroy a block, but it seems to go back to 0 when you "die" - hence
+-- always seeing output of 0.
+-- 3) if you play accurately there will surely be a LOT more than 10 inputs!
+-- 4) Not totally sure how to solve - it could just be a case of observing the positions of things, and what
+-- works, and trying to "aim" the ball. Seems too manual, time-consuming and error-prone - but don't see
+-- how to code it either. (Other than to compute the score when the correct joystick sequence is known.)
+
+-- getting the hang of it now, maybe? Definitely more than 10 needed!
+
+--  [1,0,-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,-1,0,-1] is a promising start, but in order to really
+-- figure it out I think I need to look at the starting grid, figure out how the maths works (it's simple
+-- for ball and paddle, but I'm not sure yet how the ball comes of the paddle - which depends on either the
+-- paddle's recent movement or how far it is from the ball - or off the blocks)

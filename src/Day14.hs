@@ -111,6 +111,7 @@ oreToMake i q r = minimum . map result $ fullReduction initialReduction
 solvePart1 :: Reactions -> Int
 solvePart1 = oreToMake "FUEL" 1
 
-
+-- still unsolved, as for the final example and the real input, the runtime is enormous, despite
+-- being almost instant on the others. This seems to be because the "branching" is exponential :(
 part1 :: IO Int
 part1 = puzzleData >>= return . solvePart1
