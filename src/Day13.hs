@@ -12,7 +12,6 @@ import Data.Vector (Vector, (//), (!))
 import qualified Data.Vector as V
 import Lens.Micro.Platform
 
-import Debug.Trace (traceShow, trace)
 
 import Day9 (parseFile, Pos, RelativeBase, Output, Instruction(..),
                 getInstruction, getInput, getOutputPos, updateVector, readVector)
@@ -90,7 +89,7 @@ stateMachine = do
         Input mode -> do
             case inputList of
                 [] -> error "ran out of joystick inputs!"
-                (i:is) -> trace "reading input now" $ do
+                (i:is) -> do
                     let outputPos = getOutputPos vect relative mode $ pos + 1
                     let newVect = updateVector outputPos (toInteger i) vect
                     program .= newVect
@@ -203,10 +202,10 @@ playGame = go Nothing Nothing Nothing
                                 Nothing -> go maybeX (Just output) maybeTile
                                 Just y -> case maybeTile of
                                     Nothing -> if x == -1 && y == 0
-                                        then traceShow (fromInteger x, fromInteger y, fromInteger output) $ do
+                                        then do
                                             gameScore .= fromInteger output
                                             return False
-                                        else traceShow (fromInteger x, fromInteger y, toEnum $ fromInteger output :: Tile) $ do
+                                        else do
                                             gameState %= M.insert (fromInteger x, fromInteger y)
                                                 (toEnum $ fromInteger output)
                                             return False
@@ -227,53 +226,32 @@ fullGameWithScore = do
         else fullGameWithScore
 
 
--- made to test with GHCi, to see what kind of length of input is needed to guarantee
--- not running out of inputs
-solveWithInput :: [Int] -> IO (Bool, Int)
-solveWithInput inputs = do
-    v <- puzzleData
-    let startGame = playForFree v
-    let newStartState = (startingState startGame) { _joystickPositions = inputs }
-    return $ evalState fullGameWithScore newStartState
-
-
--- from running the above with sample inputs, at least some sequences of 9 instructions are not sufficient,
--- but it seems that 10 might suffice. (Note that I've only ever seen 0 for the score, but perhaps one
--- precise sequence will work!)
-
-allSequences :: Int -> [[Int]]
-allSequences 0 = []
-allSequences 1 = [[-1], [0], [1]]
-allSequences n = [((-1):), (0:), (1:)] <*> allSequences (n - 1)
+-- this is the key state-updating function, after spending some time messing with the inner workings and
+-- realising this was *actually* playing breakout. We make sure we always move the joystick such that the
+-- paddle is level with the ball (probably not the quickest win, but it does work!)
+playToWin :: State ProgramState Int
+playToWin = do
+    isDone <- playGame
+    score <- use gameScore
+    game <- use gameState
+    if isDone
+        then return score
+        else do
+            let blocksLeft = M.size $ M.filter (== Block) game
+            let hasBall = not . M.null $ M.filter (== Ball) game
+            let hasPaddle = not . M.null $ M.filter (== Paddle) game
+            let ballXPos = if hasBall then fst . head . M.keys $ M.filter (== Ball) game else 0
+            let paddleXPos = if hasPaddle then fst . head . M.keys $ M.filter (== Paddle) game else 0
+            case compare paddleXPos ballXPos of
+                LT -> joystickPositions .= [1]
+                EQ -> joystickPositions .= [0]
+                GT -> joystickPositions .= [-1]
+            playToWin
 
 
 solvePart2 :: Vector Integer -> Int
-solvePart2 v = go 0
-    where go n =
-            let inputs = V.fromList (allSequences 10) ! n
-                startGame = playForFree v
-                newStartState = (startingState startGame) { _joystickPositions = traceShow inputs inputs }
-                ((won, score), endState) = runState fullGameWithScore newStartState
-                unused = length $ _joystickPositions endState
-                increment = 3 ^ unused -- this isn't fully accurate and may skip some legitimate inputs
-            in traceShow score $ if won then score else go (n + increment)
+solvePart2 = evalState playToWin . startingState . playForFree
 
 
 part2 :: IO Int
 part2 = puzzleData >>= return . solvePart2
-
--- making progress now, just by including the above debug statements and watching the output. Things to note:
--- 1) This really does simulate a breakout game!
--- 2) The score does increase when you destroy a block, but it seems to go back to 0 when you "die" - hence
--- always seeing output of 0.
--- 3) if you play accurately there will surely be a LOT more than 10 inputs!
--- 4) Not totally sure how to solve - it could just be a case of observing the positions of things, and what
--- works, and trying to "aim" the ball. Seems too manual, time-consuming and error-prone - but don't see
--- how to code it either. (Other than to compute the score when the correct joystick sequence is known.)
-
--- getting the hang of it now, maybe? Definitely more than 10 needed!
-
---  [1,0,-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,-1,0,-1] is a promising start, but in order to really
--- figure it out I think I need to look at the starting grid, figure out how the maths works (it's simple
--- for ball and paddle, but I'm not sure yet how the ball comes of the paddle - which depends on either the
--- paddle's recent movement or how far it is from the ball - or off the blocks)
