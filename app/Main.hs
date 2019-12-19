@@ -17,11 +17,13 @@ import qualified Day14
 import qualified Day15
 import qualified Day16
 import qualified Day17
+import qualified Day18
+import qualified Day19
 
 
 main :: IO ()
 main = do
-    putStr "The answer to Day 1, Part 1 is "
+    {-putStr "The answer to Day 1, Part 1 is "
     Day1.part1 >>= print
     putStr "The answer to Day 1, Part 2 is "
     Day1.part2 >>= print
@@ -74,16 +76,22 @@ main = do
     putStr "The answer to Day 13, Part 1 is "
     Day13.part1 >>= print
     putStr "The answer to Day 13, Part 2 is "
-    Day13.part2 >>= print
+    Day13.part2 >>= print-}
     {-putStr "The answer to Day 14, Part 1 is "
     Day14.part1 >>= print-}
-    putStr "The answer to Day 15, Part 1 is "
+    {-putStr "The answer to Day 15, Part 1 is "
     print Day15.part1
     putStr "The answer to Day 16, Part 1 is "
-    Day16.part1 >>= putStrLn
+    Day16.part1 >>= putStrLn-}
     {-putStr "The answer to Day 16, Part 2 is "
     Day16.part2 >>= putStrLn-}
-    putStr "The answer to Day 17, Part 1 is "
+    {-putStr "The answer to Day 17, Part 1 is "
     Day17.part1 >>= print
     putStr "The answer to Day 17, Part 2 is "
-    Day17.part2 >>= print
+    Day17.part2 >>= print-}
+    {-putStr "The answer to Day 18, Part 1 is "
+    Day18.part1 >>= print-}
+    putStr "The answer to Day 19, Part 1 is "
+    Day19.part1 >>= print
+    putStr "The answer to Day 19, Part 2 is "
+    Day19.part2 >>= print
