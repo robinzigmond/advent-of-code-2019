@@ -3,6 +3,7 @@
 module Day19 where
 
 import Control.Monad.State
+import Data.List (isInfixOf)
 import Data.Maybe (catMaybes)
 import Data.Set (Set)
 import qualified Data.Set as S
@@ -16,6 +17,7 @@ import Lens.Micro.Platform
 import Day9 (parseFile, Pos, RelativeBase, Output, Instruction(..),
                 getInstruction, getInput, getOutputPos, updateVector, readVector)
 
+import Debug.Trace (traceShow)
 
 puzzleData :: IO (Vector Integer)
 puzzleData = TIO.readFile "input/input19.txt" >>= return . parseFile
@@ -160,38 +162,43 @@ part1 :: IO Int
 part1 = puzzleData >>= return . solvePart1
 
 
--- fitsInside x y n tells us whether the nxn square with upper-left corner at point (x, y)
--- fits entirely inside the area pulled by the beam.
--- It also returns a (Maybe) location indicating where the test failed, which we need
--- in order to solve the puzzle without repeating a bunch of unnecessary work.
-fitsInside :: Vector Integer -> Int -> Int -> Int -> (Bool, Maybe (Int, Int))
-fitsInside v x y n = case filter (\(x, y) -> not $ feelsPull v x y)
-                             [(toInteger x', toInteger y') | x' <- [x..x+n-1], y' <- [y..y+n-1]] of
-                            []    -> (True, Nothing)
-                            (l:_) -> (False, let (x0, y0) = l in Just (fromInteger x0, fromInteger y0))
+{- For the solution to Part 2, we make some assumptions that, although not explicitly stated,
+apply to the examples given in the puzzle, and will make the program both simpler and a lot
+quicker if we assume them. These are:
+1. In each row, only a single contiguous block of locations are pulled.
+2. These blocks never decrease in length as you move down
+3. Likewise, the position of the left-most location that is pulled never moves backward (to the left)
+-}
+
+-- THIS SOLUTION STILL HAS TERRIBLE PERFORMANCE, EVEN CALCULATING PulledInRow TAKES FOREVER!
+
+-- the following function takes a row and returns a pair consisting of the position of the leftmost
+-- location that is pulled, and the number of consecutive blocks that are pulled
+pulledInRow :: Vector Integer -> Int -> (Int, Int)
+pulledInRow v r = (start, len)
+    where isValid x = feelsPull v (toInteger x) $ toInteger r
+          pulled = filter isValid [0..3*r]
+          -- arbitrary upper limit to stop infinite loop when the row is empty
+          start = head pulled
+          len = length pulled
 
 
--- this function goes through a list of locations, testing for whether the relevant square fits
--- there, and returns a set of all points which are ruled out as a solution based on "non-pulled"
--- locations found in the check
-toExclude :: Vector Integer -> Int -> [(Int, Int)] -> Set (Int, Int)
-toExclude v n ls = S.fromList $ concatMap getExclusions ls
-    where getExclusions (x, y) = case snd (fitsInside v x y n) of
-            Nothing -> []
-            Just (x0, y0) -> [(x, y) | x <- [x0 - n + 1..x0], y <- [y0 - n + 1..y0]]
+-- this is the key function that takes the size of a square to fit and solve the puzzle for
+-- such a square
+closestFit :: Vector Integer -> Int -> (Int, Int)
+closestFit v n = head $ filter (\l -> traceShow l $ works l) possibleAnswers
+    where start = fst . pulledInRow v
+          len = snd . pulledInRow v
+          longEnough r = len r >= n
+          possibleRows = dropWhile (not . longEnough) [100..]
+          -- arbitrary lower limit, but avoid early rows with nothing pulled
+          possibleInRow r = map (\x -> (x, r)) [start r..len r-n+1]
+          possibleAnswers = concatMap possibleInRow possibleRows
+          works (x, y) = all (\y' -> x >= start y' && x + n - 1 < start y' + len y') [y..y+n-1]
 
 
--- still runs too slowly (and therefore I haven't solved it), despite the "optimisations" above
 solvePart2 :: Vector Integer -> Int
-solvePart2 v = calculate $ go 0 S.empty
-        where go n exclude = let toTest = diag exclude n
-                             in case filter (uncurry fits) toTest of
-                                    [] -> go (n + 1) . S.union exclude $ toExclude v 100 toTest
-                                    (l:_) -> l
-              fits x y = fst $ fitsInside v x y 100
-              calculate (x, y) = 10000 * x + y
-              -- test in a "diagonal" pattern
-              diag exclude n = [(x, n - x) | x <- [0..n], (x, n - x) `S.notMember` exclude]
+solvePart2 v = let (x, y) = closestFit v 100 in 10000 * x + y
 
 
 part2 :: IO Int

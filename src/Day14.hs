@@ -2,13 +2,12 @@
 
 module Day14 where
 
-import Data.List (findIndices)
+import Data.List (sortOn)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO (readFile)
-import Lens.Micro.Platform (ix, (%~))
 
 
 type IngredientList = HashMap Text Int
@@ -79,18 +78,24 @@ recursiveLookup i q r
             | otherwise = fullyReduce $ reduce m
 
 
+-- helper function which might be useful - based on the idea that it's based to start by rounding up
+-- those ingredients which need to go through the most conversions to get down to ore
+stepsToOre :: Text -> Reactions -> Int
+stepsToOre "ORE" _ = 1
+stepsToOre i r = succ . maximum . map (flip stepsToOre r) . M.keys $
+                    let Just (_, m) = M.lookup i r in m
+
+
 -- this function is called when the recursive reduction above meets a dead end due to all the quantities
 -- being less than the amount that can be made from a reaction. In this case we simply "round up" one
--- of the quantities to what it needs to be - and return a list of possible results, so we can later
--- test for which gives the minimum solution. (If all ingredients are just made from fuel, with no
--- intermediate steps, then there is clearly nothing better than to round all up at once, which we
--- do in this case.)
-roundUp :: Reactions -> IngredientList -> [IngredientList]
-roundUp r m
-    = case findIndices (\(i,_) -> i /= "ORE" && any (/= "ORE") (allIngredients i)) $ M.toList m of
-        [] -> [M.fromList . map roundupPair $ M.toList m]
-        idxs -> map (\idx -> M.fromList . (ix idx %~ roundupPair) $ M.toList m) idxs
-        where allIngredients i = let Just (_, is) = M.lookup i r in M.keys is
+-- of the quantities to what it needs to be - I've chosen to take one of the ingredients which is
+-- "furthest" from ore in terms of conversion steps , and it worked - but I'm really not sure why!
+-- (Attempts to be more careful by considering all possibilities ran into the problem of exponential
+-- explosion of possibilities for the more complex examples.)
+roundUp :: Reactions -> IngredientList -> IngredientList
+roundUp r m = let (furthest:rest) = sortOn steps $ M.toList m
+              in M.fromList (roundupPair furthest : rest)
+        where steps = flip stepsToOre r . fst
               roundupPair (i, n)
                 | i == "ORE" = (i, n)
                 | otherwise = let Just (m, _) = M.lookup i r in if n > 0 && n < m then (i, m) else (i, n)
@@ -101,7 +106,7 @@ oreToMake i q r = minimum . map result $ fullReduction initialReduction
         where result m = let Just res = M.lookup "ORE" m in res
               fullReduction m
                 | hasJustOre m = [m]
-                | otherwise = concatMap (fullReduction . reduce) $ roundUp r m
+                | otherwise = fullReduction . reduce $ roundUp r m
               recurse i n = recursiveLookup i n r
               reduce = mergeAll . M.elems . M.mapWithKey recurse
               initialReduction = recursiveLookup i q r
