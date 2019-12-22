@@ -9,7 +9,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO (readFile)
 
-
 type IngredientList = HashMap Text Int
 
 -- this type synonym holds information about how to make a given "ingredient".
@@ -93,7 +92,7 @@ stepsToOre i r = succ . maximum . map (flip stepsToOre r) . M.keys $
 -- (Attempts to be more careful by considering all possibilities ran into the problem of exponential
 -- explosion of possibilities for the more complex examples.)
 roundUp :: Reactions -> IngredientList -> IngredientList
-roundUp r m = let (furthest:rest) = sortOn steps $ M.toList m
+roundUp r m = let (furthest:rest) = reverse . sortOn steps $ M.toList m
               in M.fromList (roundupPair furthest : rest)
         where steps = flip stepsToOre r . fst
               roundupPair (i, n)
@@ -102,10 +101,10 @@ roundUp r m = let (furthest:rest) = sortOn steps $ M.toList m
 
 
 oreToMake :: Text -> Int -> Reactions -> Int
-oreToMake i q r = minimum . map result $ fullReduction initialReduction
+oreToMake i q r = result $ fullReduction initialReduction
         where result m = let Just res = M.lookup "ORE" m in res
               fullReduction m
-                | hasJustOre m = [m]
+                | hasJustOre m = m
                 | otherwise = fullReduction . reduce $ roundUp r m
               recurse i n = recursiveLookup i n r
               reduce = mergeAll . M.elems . M.mapWithKey recurse
