@@ -105,3 +105,5 @@ main = do
     Day21.part2 >>= print
     putStr "The answer to Day 22, Part 1 is "
     Day22.part1 >>= print
+    putStr "The answer to Day 22, Part 2 is "
+    Day22.part2 >>= print

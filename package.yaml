@@ -28,6 +28,7 @@ dependencies:
 - ghc
 - microlens-platform
 - unordered-containers
+- cryptonite
 
 library:
   source-dirs: src
