@@ -22,6 +22,7 @@ import qualified Day19
 import qualified Day21
 import qualified Day22
 import qualified Day23
+import qualified Day24
 
 
 main :: IO ()
@@ -110,3 +111,7 @@ main = do
     Day22.part2 >>= print
     putStr "The answer to Day 23, Part 1 is "
     Day23.part1 >>= print
+    putStr "The answer to Day 24, Part 1 is "
+    Day24.part1 >>= print
+    putStr "The answer to Day 24, Part 2 is "
+    Day24.part2 >>= print

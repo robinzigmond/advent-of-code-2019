@@ -278,5 +278,7 @@ solvePart2 = evalState getRepeat . startNetworkStateWithNat
 
 
 -- this performs badly, but eventually gave an answer: unfortunately it was wrong! Will try to debug later...
+-- (pesumably it's the definition of being idle? Is my current one too lenient, or too strict. I would guess
+-- too lenient.)
 part2 :: IO Integer
 part2 = puzzleData >>= return . solvePart2
