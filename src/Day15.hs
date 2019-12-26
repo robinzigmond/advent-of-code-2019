@@ -1,5 +1,7 @@
 -- WARNING: this file is LONG, but, mainly in the second half,
--- it's mostly comments and discussion with only scraps of code
+-- it's mostly comments and discussion with only scraps of code. Not all of it is
+-- even relevant to the solution, but the way I solved this was such a mess that I might
+-- as well give all my thought processes as I was doing it
 
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -257,7 +259,7 @@ explore = go 1 0
             location <- use droidPosition
             area <- use knownSpace
             let newLocation = moveDroid dir location
-            if n > 500 -- crude attempt to limit how long we can explore for
+            if n > 2000 -- crude attempt to limit how long we can explore for
                 then return n
                 else case M.lookup newLocation area of
                     Just Empty -> return n -- we're somewhere we already know (but doesn't work)
@@ -548,52 +550,222 @@ seeSW = result exploreSW
 {- this works, after introducing the exploration length limit above (before it got into an infinite
 loop exploring the same locations), producing:
 
-#   #     # # #   #             
-   ...#........D#.....#
- # . . #   # . . .   . #
- ...#...# #...#...# #...# 
- . # # .   . # # #   # .           
-#...#.#.   .          #.           
- # . . . # .           #
-#...#...#...#
- . # . # . #                       
- .#...#  .
- . . #   .                         
- .#...#  .                         
- . # .   .                         
-#...#.....#                        
- . . #   #                         
- .#...#                            
- . # .      
-#.#...#  ...........     
- # . #   .         .     
-#...#... ... ..... .
- . # . .   . .   . .               
-#...#. ..... .   ... .             
- . . .       .       .             
- . . ...     .   .....             
- . .   .     .   .                 
- . .   ..... .....       ...       
- . .       .             . .       
-#.#.       ...........   . .       
- # .                 .   . .       
-#...#  ............. . ... .....   
- . #   .           . . .       .   
- . .....           . ... ...   ... 
- . .               .     . .     . 
+   #   #     # # #   # # # # #   #     # 
+   ...#.........#.....#.....#...#.......#
+ # . . #   # . . .   . # . . . . #     . 
+ ...#...# #...#...# #...#.#...#.....#  . 
+ . # # .   . # # #   # . . # # # # .   . 
+#...#.#.   .          #...#.......#.   . 
+ # . . . # .           # # .     # .   . 
+#...#...#...#             #.........   . 
+ . # . # . #             # .       #   . 
+ .#...#  .              #...#      ...#. 
+ . . #   .               . # # #   . . . 
+ .#...#  .              #.....#.....#...#
+ . # .   .           #   # # . . # # # .
+#...#.....#         #.......#...#...#...#
+ . . #   #           . #   # # # . . . # 
+ .#...#              .#.........#.#...#
+ . # .               . . #   # . . # #   
+#.#...#  ........... . . ...#...#...#    
+ # . #   .         . . . . . . # # .
+#...#... ... ..... .#.....#.#.....#.     
+ . # . .   . .   . . # # # . #   . .     
+#...#. ..... .   ... .#D..#.    #...#    
+ . . .       .       . . # .     # #     
+ . . ...     .   .....#.....             
+ . .   .     .   .     .   #
+ . .   ..... .....     . ...
+ . .       .           . . .
+#.#.       ...........#.#. .
+ # .                 . # . .
+#...#  ............. . ... .....
+ . #   .           . . .       .
+ . .....           . ... ...   ...       
+ . .               .     . .     .       
  . .             ...     . .......#
- . .             .       .         
- . ......... .....       ...       
- .         . .             .       
- .     ..... .       ..... .       
- .     .#  # .       .   . .       
-#...........#.........   ...       
+ . .             .       .
+ . ......... .....       ...
+ .         . .             .
+ .     ..... .       ..... .
+ .     .#  # .       .   . .
+#...........#.........   ...
  #         #
 
-
-Working from where the oxygen actually is, I only count 126 max distance along the "new" routes - much
-less than to the original starting point. So we must be leaving some tunnels unexplored among the maze.
+Working from where the oxygen actually is, I only count a max distance of 272 - but that's still too low.
+Possibly I miscounted, but a lot of it is guesswork. We need a more systematic exploration method.
 
 Next step: rewrite to folllow a "keep wall on right" strategy!
 Do this from the start, and don't stop when the oxygen has been discovered (but do mark it).
 -}
+
+-- moves the droid in the appropriate direction to always "keep the wall on the right"
+keepWallOnRight :: Integer -> Integer -> State ProgramState ()
+keepWallOnRight limit startDir = go 0 startDir 
+    where go n startDir = if n == limit then return () else do
+            location <- use droidPosition
+            let toRight = turnRight startDir
+            let shouldbeWall = moveDroid toRight location
+            fly [toRight]
+            area <- use knownSpace
+            case M.lookup shouldbeWall area of
+                Just Empty -> go (n + 1) toRight
+                Just Oxygen -> go (n + 1) toRight
+                Just Wall -> do
+                    -- wall on right, so keep going forward if possible
+                    let whatsForward = moveDroid startDir location
+                    fly [startDir]
+                    area <- use knownSpace
+                    case M.lookup whatsForward area of
+                        Just Empty -> go (n + 1) startDir
+                        Just Oxygen -> go (n + 1) startDir
+                        Just Wall -> do
+                            -- walls to the right and ahead, so turn left if possible
+                            location <- use droidPosition
+                            let toLeft = turnRight . turnRight $ turnRight startDir
+                            let whatsLeft = moveDroid toLeft location
+                            fly [toLeft]
+                            area <- use knownSpace
+                            case M.lookup whatsLeft area of
+                                Just Empty -> go (n + 1) toLeft
+                                Just Oxygen -> go (n + 1) toLeft
+                                Just Wall -> do
+                                    -- walls on three sides, the only option is to move back!
+                                    location <- use droidPosition
+                                    let back = turnRight $ turnRight startDir
+                                    let whatsBehind = moveDroid back location
+                                    fly [back]
+                                    area <- use knownSpace
+                                    case M.lookup whatsBehind area of
+                                        Just Empty -> go (n + 1) back
+                                        Just Oxygen -> go (n + 1) back
+                                        _ -> error "that shouldn't happen!"
+                                Nothing -> error "that shouldn't happen!"
+                        Nothing -> error "that shouldn't happen!"
+                Nothing -> error "that shouldn't happen!"
+
+
+exploreAll :: Integer -> IO ()
+exploreAll limit = result $ keepWallOnRight limit 1
+
+{-
+Yes, I definitely should have done this from the start! Here is the result:
+
+ ##### ######### ##### ##### ### ####### 
+#.....#.........#.....#.....#...#.......#
+ ##.#.###.###.#.#.###.###.#.#.#.#####.#.#
+#...#...#.#...#...#.#...#.#...#.....#.#.#
+#.## ##.#.#.#######.###.#.#########.#.#.#
+#...#.#.#.#.#...#.....#...#.......#.#.#.#
+ ##.#.#.###.#.#.#####.#####.#######.#.#.#
+#...#...#...#.#.....#.....#........D#.#.#
+#.###.###.###.#####.#.#.###.###########.#
+#.#...#...#.....#.....#.#...#.........#.#
+#.#.###.#.#.###.#.#######.#########.#.#.#
+#.#...#.#.#...#.#.#.....#.....#.....#...#
+#.###.###.#####.#.#.###.#####.#.#### ##.#
+#...#.....#.....#.#.#.......#...#...#...#
+#.#.#######.#######.#.###########.#.#.## 
+#.#...#.............#.#.........#.#...#.#
+#.###.#.#############.#.#######.#.#####.#
+#.#...#.#...........#.#.#...#...#...#...#
+ ##.#####.#########.#.#.#.#.#.#####.#.#.#
+#...#...#...#.....#.#.....#.#.....#.#.#.#
+#.###.#.###.#.###.#.#######.#####.#.#.## 
+#...#.#.....#.#.....#S#...#.#...#...#...#
+#.#.#.#######.#.#####.#.###.###.#####.#.#
+#.#.#...#...#.#.#.....#.......#...#...#.#
+#.#.###.###.#.###.#####.#####.#.#.#####.#
+#.#...#.....#.....#.....#...#.#.#...#...#
+#.#.#.#####.###########.#.#.#.#.###.#.#.#
+#.#.#.....#...........#.#.#.#...#.#...#.#
+ ##.#.###############.###.#.#####.#####.#
+#...#.#.............#.#...#.....#.......#
+#.#####.###########.#.#.#######.###.#### 
+#.#.....#.........#.#...#.....#...#.#...#
+#.#.#####.#.###.###.#####.#.#####.#.###.#
+#.#.#*....#.#...#...#...#.#.......#.....#
+#.#.#######.#####.#.###.#.#############.#
+#.#.........#.....#.....#...#...#.....#.#
+#.#########.#.#####.#######.#.#.#.#.###.#
+#.....#.....#.#.....#.....#.#.#...#.....#
+#.#####.#####.#######.###.#.#.########## 
+#...........#...........#...#...........#
+ ########### ########### ### ########### 
+
+We could now write a program to compute the max distance from the oxygen - but,
+particularly combined with what I've already seen, it's relatively easy to trace and count
+(with help from the computer for the latter part), the route needed. The route is marked with
+R's below:
+
+ ##### ######### ##### ##### ### ####### 
+#..RRR#......RRR#RRRRR#..RRR#RRR#.......#
+ ##R#R###.###R#R#R###R###R#R#R#R#####.#.#
+#RRR#RRR#.#RRR#RRR#.#RRR#R#RRR#RRRRR#.#.#
+#R## ##R#.#R#######.###R#R#########R#.#.#
+#RRR#.#R#.#R#111#11111#RRR#.......#R#.#.#
+ ##R#.#R###R#1#1#####1#####.#######R#.#.#
+#RRR#RRR#RRR#1#11111#1....#RRRRRRRRR#.#.#
+#R###R###R###1#####1#1#.###R###########.#
+#R#RRR#..R#..111#..111#.#RRR#......RRR#.#
+#R#R###.#R#.###1#.#######R#########R#R#.#
+#R#RRR#.#R#...#1#.#11111#RRRRR#RRRRR#RRR#
+#R###R###R#####1#.#1###1#####R#R#### ##R#
+#RRR#RRRRR#11111#.#1#111....#RRR#RRR#RRR#
+#.#R#######1#######1#1###########R#R#R## 
+#.#RRR#....111111111#1#RRRRRRRRR#R#RRR#.#
+#.###R#.#############1#R#######R#R#####.#
+#.#RRR#.#...........#1#R#222#RRR#RRR#...#
+ ##R#####.#########.#1#R#2#2#R#####R#.#.#
+#RRR#...#...#.....#.#11R22#2#RRRRR#R#.#.#
+#R###.#.###.#.###.#.#######2#####R#R#.## 
+#RRR#.#.....#.#.....#.#...#2#...#RRR#...#
+#.#R#.#######.#.#####.#.###2###.#####.#.#
+#.#R#...#...#.#.#.....#....222#222#...#.#
+#.#R###.###.#.###.#####.#####2#2#2#####.#
+#.#R..#.....#.....#.....#...#2#2#222#222#
+#.#R#.#####.###########.#.#.#2#2###2#2#2#
+#.#R#.....#...........#.#.#.#222#.#222#2#
+ ##R#.###############.###.#.#####.#####2#
+#RRR#.#.............#.#...#.....#..22222#
+#R#####.###########.#.#.#######.###2#### 
+#R#.....#RRR......#.#...#.....#...#2#...#
+#R#.#####R#R###.###.#####.#.#####.#2###.#
+#R#.#*RRRR#R#...#...#...#.#.......#22222#
+#R#.#######R#####.#.###.#.#############2#
+#R#........R#.....#.....#...#222#222..#2#
+#R#########R#.#####.#######.#2#2#2#2###2#
+#R....#RRRRR#.#.....#.....#.#2#222#22222#
+#R#####R#####.#######.###.#.#2########## 
+#RRRRRRR....#...........#...#22222222222#
+ ########### ########### ### ########### 
+
+
+- well, as you can see, I got so far and then it was not obvious which of 2 forks to take. Hence
+the split into 1 vs 2.
+- 1 has length 64 (after the fork)
+- 2 has length 88
+So 2 is the longer route. And the total number of Rs is 252.
+So the answer should be 252 + 88 = 340. And this was correct!
+
+Let's translate to a little bit of code, as for Part 1
+-}
+
+
+longestFromOxygen :: [(Integer, Int)]
+longestFromOxygen = [(4,4),(1,2),(4,2),(2,6),(3,4),(2,2),(3,6),(1,10),(4,2),(1,8),(3,2),(1,2),(4,2),
+                        (1,2),(4,2),(1,2),(3,2),(1,2),(3,2),(1,6),(4,2),(1,2),(3,2),
+                        (1,2),(4,2),(1,2),(4,2),(2,2),(4,2),(2,4),(3,2),(2,2),(3,2),
+                        (2,2),(4,2),(2,2),(4,4),(1,6),(4,2),(1,4),(4,2),(1,2),(4,2),
+                        (2,2),(4,2),(1,2),(4,4),(2,2),(4,2),(2,2),(4,2),(1,4),(4,2),
+                        (2,2),(4,2),(1,2),(4,2),(2,2),(4,4),(2,4),(3,8),(2,2),(3,2),
+                        (2,2),(4,4),(2,2),(4,2),(1,2),(4,4),(1,2),(4,2),(2,2),(4,2),
+                        (2,2),(3,2),(2,2),(3,2),(1,2),(3,2),(2,4),(4,2),(2,4),(3,2),
+                        (1,2),(3,4),(1,2),(4,2),(1,2),(3,8),(2,4),(4,2),(1,2),(4,2),
+                        (2,6),(4,2),(2,4),(4,2),(1,4),(4,2),(2,2),(4,2),(2,2),(4,2),
+                        (1,2),(4,2),(2,4),(3,4),(2,4),(4,4),(2,4),(3,4),(1,2),(3,2),
+                        (2,2),(3,2),(1,2),(3,2),(2,4),(3,10)]
+
+
+part2 :: Int
+part2 = length $ convertRLE longestFromOxygen

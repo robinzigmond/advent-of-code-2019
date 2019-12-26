@@ -88,6 +88,8 @@ main = do
     Day14.part2 >>= print-}
     putStr "The answer to Day 15, Part 1 is "
     print Day15.part1
+    putStr "The answer to Day 15, Part 2 is "
+    print Day15.part2
     putStr "The answer to Day 16, Part 1 is "
     Day16.part1 >>= putStrLn
     {-putStr "The answer to Day 16, Part 2 is "

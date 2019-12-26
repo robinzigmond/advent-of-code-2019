@@ -12,9 +12,6 @@ import Lens.Micro.Platform
 import Day9 (parseFile)
 import Day21 (startingState, proceed)
 
-import Debug.Trace (trace, traceShow)
-
-
 
 puzzleData :: IO (Vector Integer)
 puzzleData = TIO.readFile "input/input25.txt" >>= return . parseFile
