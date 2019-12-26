@@ -20,11 +20,14 @@ import Day9 (parseFile, Pos, RelativeBase, Output, Instruction(..),
                 getInstruction, getInput, getOutputPos, updateVector, readVector)
 
 
+import Debug.Trace (traceShow, trace)
+
+
 puzzleData :: IO (Vector Integer)
 puzzleData = TIO.readFile "input/input15.txt" >>= return . parseFile
 
 
-data Position = Empty | Wall | Oxygen deriving (Eq)
+data Position = Empty | Wall | Oxygen deriving (Eq, Show)
 
 type Location = (Int, Int)
 
@@ -254,22 +257,24 @@ explore = go 1 0
             location <- use droidPosition
             area <- use knownSpace
             let newLocation = moveDroid dir location
-            case M.lookup newLocation area of
-                Just Empty -> return n -- we're somewhere we already know
-                _ -> case oxygen of
-                    Just _ -> do
-                        fly [turnRight $ turnRight dir]
-                        return n
-                    -- (we've found it, no need to continue, but we move backwards
-                    -- to ensure we can see the position of the oxygen)
-                    Nothing -> let isClear d = M.lookup (moveDroid d location) area /= Just Wall
-                                   availableDirs = [turnRight dir,
-                                                    turnRight . turnRight $ turnRight dir,
-                                                    turnRight $ turnRight dir]
-                                   clear = filter isClear availableDirs
-                               in case clear of
-                                [] -> return n -- can't happen, would mean we've flown into a dead end!
-                                (newDir:_) -> go newDir $ n + dist
+            if n > 500 -- crude attempt to limit how long we can explore for
+                then return n
+                else case M.lookup newLocation area of
+                    Just Empty -> return n -- we're somewhere we already know (but doesn't work)
+                    _ -> case oxygen of
+                        Just _ -> do
+                            fly [turnRight $ turnRight dir]
+                            return n
+                        -- (we've found it, no need to continue, but we move backwards
+                        -- to ensure we can see the position of the oxygen)
+                        Nothing -> let isClear d = M.lookup (moveDroid d location) area /= Just Wall
+                                       availableDirs = [turnRight dir,
+                                                        turnRight . turnRight $ turnRight dir,
+                                                        turnRight $ turnRight dir]
+                                       clear = filter isClear availableDirs
+                                   in case clear of
+                                    [] -> return n -- can't happen, would mean we've flown into a dead end!
+                                    (newDir:_) -> go newDir $ n + dist
 
 
 seeMap :: IO ()
@@ -540,7 +545,55 @@ exploreSW = do
 seeSW :: IO ()
 seeSW = result exploreSW
 
--- this hangs for some reason (must be inside explore, but that's supposed to stop when the droid is about
--- to revisit an empty space it's already been to, which should surely happen before too long?). Going to
--- leave for now, but think I need a new approach - like going back to the start and adopting a slightly
--- different, but I think more effective, strategy of "keep the wall on your right"
+{- this works, after introducing the exploration length limit above (before it got into an infinite
+loop exploring the same locations), producing:
+
+#   #     # # #   #             
+   ...#........D#.....#
+ # . . #   # . . .   . #
+ ...#...# #...#...# #...# 
+ . # # .   . # # #   # .           
+#...#.#.   .          #.           
+ # . . . # .           #
+#...#...#...#
+ . # . # . #                       
+ .#...#  .
+ . . #   .                         
+ .#...#  .                         
+ . # .   .                         
+#...#.....#                        
+ . . #   #                         
+ .#...#                            
+ . # .      
+#.#...#  ...........     
+ # . #   .         .     
+#...#... ... ..... .
+ . # . .   . .   . .               
+#...#. ..... .   ... .             
+ . . .       .       .             
+ . . ...     .   .....             
+ . .   .     .   .                 
+ . .   ..... .....       ...       
+ . .       .             . .       
+#.#.       ...........   . .       
+ # .                 .   . .       
+#...#  ............. . ... .....   
+ . #   .           . . .       .   
+ . .....           . ... ...   ... 
+ . .               .     . .     . 
+ . .             ...     . .......#
+ . .             .       .         
+ . ......... .....       ...       
+ .         . .             .       
+ .     ..... .       ..... .       
+ .     .#  # .       .   . .       
+#...........#.........   ...       
+ #         #
+
+
+Working from where the oxygen actually is, I only count 126 max distance along the "new" routes - much
+less than to the original starting point. So we must be leaving some tunnels unexplored among the maze.
+
+Next step: rewrite to folllow a "keep wall on right" strategy!
+Do this from the start, and don't stop when the oxygen has been discovered (but do mark it).
+-}

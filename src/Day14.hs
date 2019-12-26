@@ -2,9 +2,11 @@
 
 module Day14 where
 
-import Data.List (sortOn)
-import Data.HashMap.Strict (HashMap)
+import Data.Bifunctor (second)
+import Data.HashMap.Strict (HashMap, (!))
 import qualified Data.HashMap.Strict as M
+import Data.List (sortOn)
+import Data.Maybe (fromJust, catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO (readFile)
@@ -53,7 +55,7 @@ mergeAll = foldr mergeIngredients M.empty
 -- other ingredients, they are simply left in.
 lookUpIngredient :: Text -> Int -> Reactions -> IngredientList
 lookUpIngredient ingredient quantity r = case M.lookup ingredient r of
-    Nothing -> M.fromList [(ingredient, quantity)]
+    Nothing -> M.singleton ingredient quantity
     Just (n, m) -> case compare quantity n of
         LT -> M.singleton ingredient quantity
         EQ -> m
@@ -66,7 +68,7 @@ lookUpIngredient ingredient quantity r = case M.lookup ingredient r of
 -- can't be made exactly with other ingredients
 recursiveLookup :: Text -> Int -> Reactions -> IngredientList
 recursiveLookup i q r
-    | i == "ORE" = M.fromList [("ORE", q)]
+    | i == "ORE" = M.singleton "ORE" q
     | otherwise = fullyReduce needed
     where needed = lookUpIngredient i q r
           recurse i n = recursiveLookup i n r
@@ -115,7 +117,33 @@ oreToMake i q r = result $ fullReduction initialReduction
 solvePart1 :: Reactions -> Int
 solvePart1 = oreToMake "FUEL" 1
 
--- still unsolved, as for the final example and the real input, the runtime is enormous, despite
--- being almost instant on the others. This seems to be because the "branching" is exponential :(
+
 part1 :: IO Int
 part1 = puzzleData >>= return . solvePart1
+
+
+-- determines if the first ingredient list contains enough ingredients of all types to be able to make up
+-- the second one. If not,this returns Nothing, otherwise it returns Just the quantities left.
+ingredientsLeft :: IngredientList -> IngredientList -> Maybe IngredientList
+ingredientsLeft have need = case sequence $ map snd allDiffs of
+    Nothing -> Nothing
+    _ -> Just . M.fromList $ map (second fromJust) allDiffs
+    where ingredientsNeeded = M.keys need
+          maybeDiff i = case M.lookup i have of
+            Nothing -> (i, Nothing)
+            Just q -> if (need ! i) < q
+                then (i, Just $ q - (need ! i))
+                else (i, Nothing)
+          allDiffs = map maybeDiff ingredientsNeeded
+
+
+-- takes a single ingredient plus a quantity, and goes down the reactions to see what can be made from it,
+-- returning a list of all possibilities of what's left afterwards (including the result of the reaction)
+canMakeFrom :: Text -> Int -> Reactions -> [IngredientList]
+canMakeFrom ingredient quantity r = catMaybes $ map mergedResults reactionList
+    where reactionList = M.toList r
+          mergedResults (i, (n, ingList)) =
+            let have = M.singleton ingredient quantity
+                left = ingredientsLeft have ingList
+                made = M.singleton i n
+            in fmap (mergeIngredients made) left

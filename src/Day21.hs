@@ -4,8 +4,6 @@ module Day21 where
 
 import Control.Monad.State
 import Data.Char (chr, ord)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO (readFile)
@@ -146,9 +144,11 @@ proceed inputList = do
             case status of
                 Running -> go $! outList
                 Finished -> return (True, outList)
-                Waiting -> case inputList of
-                    [] -> return (False, outList)
-                    _ -> go $! outList
+                Waiting -> do
+                    inputsLeft <- use inputs
+                    case inputsLeft of
+                        [] -> return (False, outList)
+                        _ -> go $! outList
 
 
 runMachineWithIO :: IO ()
