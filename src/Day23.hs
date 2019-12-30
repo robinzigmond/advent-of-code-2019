@@ -30,7 +30,7 @@ data ProgramState = ProgramState {
     _currentOutput :: !Output,
     _inputQueue :: ![Integer],
     _unprocessedOutputs :: ![Integer],
-    _isPossiblyIdle :: !Bool,
+    _idleCount :: !Int,
     _isIdle :: !Bool
 }
 
@@ -43,7 +43,7 @@ startingState v n = ProgramState {
     _currentOutput = Nothing,
     _inputQueue = [toInteger n],
     _unprocessedOutputs = [],
-    _isPossiblyIdle = False,
+    _idleCount = 0,
     _isIdle = False
 }
 
@@ -83,11 +83,12 @@ stateMachine = do
                                 (i:_) -> i
             case inputList of
                 [] -> do
-                    couldIBeIdle <- use isPossiblyIdle
-                    isIdle .= couldIBeIdle
-                    isPossiblyIdle .= True
+                    idleCount += 1
+                    counter <- use idleCount
+                    isIdle .= (counter > 100) -- 100 is arbitrary, hopefully high enough though!
                 (i:is) -> do
                     inputQueue .= is
+                    idleCount .= 0
                     isIdle .= False
             let newVect = updateVector outputPos nextInput vect
             program .= newVect
@@ -98,6 +99,8 @@ stateMachine = do
             let theOutput = getInput vect relative mode $ readVector (pos + 1) vect
             currentOutput .= Just theOutput
             programPosition += 2
+            idleCount .= 0
+            isIdle .= False
             return (False, Just theOutput)
         JumpIfTrue firstMode secondMode -> do
             let firstInput = getInput vect relative firstMode $ readVector (pos + 1) vect
@@ -232,13 +235,15 @@ networkStepWithNat = do
             case outputs of
                 [y, x, dest] -> do
                     machines . ix idx . unprocessedOutputs .= []
+                    machines . ix idx . idleCount .= 0
+                    machines . ix idx . isIdle .= False
                     if dest < 51
                         then do
                             machines . ix (fromInteger dest) . inputQueue %= (x:) . (y:)
-                            machines . ix (fromInteger dest) . isPossiblyIdle .= False
+                            machines . ix (fromInteger dest) . idleCount .= 0
                             machines . ix (fromInteger dest) . isIdle .= False
                         else if dest == 255
-                            then nat .= Just (x, y)
+                            then trace ("sending packet to NAT: " ++ show (x, y)) $ nat .= Just (x, y)
                             else error $ "unexpected destination address: " ++ show dest
                 _ -> return ()
     currentStates <- use machines
@@ -246,6 +251,7 @@ networkStepWithNat = do
 
 
 -- repeats the above till the network is idle, and returns the pair of integers held in the NAT
+-- (after sending them back to machine 0's input queue)
 repeatTillIdle :: State NetworkStateWithNAT (Integer, Integer)
 repeatTillIdle = do
     networkIdle <- networkStepWithNat
@@ -256,8 +262,9 @@ repeatTillIdle = do
                 Nothing -> error "nothing in NAT while network idle"
                 Just (x, y) -> do
                     machines . ix 0 . inputQueue .= [x, y]
-                    machines . ix 0 . isPossiblyIdle .= False
-                    machines . ix 0 . isIdle .= False
+                    forM_ [0..49] $ \idx -> do
+                        machines . ix idx . idleCount .= 0
+                        machines . ix idx . isIdle .= False
                     return (x, y)
         else repeatTillIdle
 
@@ -266,7 +273,7 @@ getRepeat :: State NetworkStateWithNAT Integer
 getRepeat = go Nothing
     where go maybeLastNat = do
             (x, y) <- repeatTillIdle
-            case traceShow (x, y) maybeLastNat of
+            case trace ("network idle, NAT sending packet " ++ show (x, y)) maybeLastNat of
                 Nothing -> use nat >>= go
                 Just (x0, y0) -> if y0 == y
                     then return y
@@ -280,5 +287,7 @@ solvePart2 = evalState getRepeat . startNetworkStateWithNat
 -- this performs badly, but eventually gave an answer: unfortunately it was wrong! Will try to debug later...
 -- (pesumably it's the definition of being idle? Is my current one too lenient, or too strict. I would guess
 -- too lenient.)
+-- Now tried debugging in various ways, and no matter what I change I always get the same sequence of
+-- inputs from the NAT, always with a repeated 2251799, which isn't the answer...
 part2 :: IO Integer
 part2 = puzzleData >>= return . solvePart2

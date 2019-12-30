@@ -29,6 +29,7 @@ dependencies:
 - microlens-platform
 - unordered-containers
 - cryptonite
+- exact-combinatorics
 
 library:
   source-dirs: src

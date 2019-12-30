@@ -83,10 +83,10 @@ directionsToGo :: Maze -> Location -> [Direction]
 directionsToGo m l = filter ((/= Wall) . lookupLocation m . flip walk l) [minBound..maxBound]
 
 
--- the following is the key functions in transforming the maze grid into
+-- the following is the key function in transforming the maze grid into
 -- a tree structure. It takes as input, as well as the maze grid, a location and a direction,
 -- follows the passage until it either hits a dead end or splits up, and records that particular
--- subtree.
+-- subtree (recursively, as far as all dead ends).
 followPassage :: Maze -> Location -> Direction -> MazeAsTree
 followPassage m l dir = go 1 l dir [] 0
     where go distance l dir found distanceToReach =

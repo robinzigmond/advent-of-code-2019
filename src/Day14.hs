@@ -6,10 +6,14 @@ import Data.Bifunctor (second)
 import Data.HashMap.Strict (HashMap, (!))
 import qualified Data.HashMap.Strict as M
 import Data.List (sortOn)
-import Data.Maybe (fromJust, catMaybes)
+import Data.Maybe (fromJust, catMaybes, fromMaybe)
+import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO (readFile)
+
+import Debug.Trace (traceShow)
+
 
 type IngredientList = HashMap Text Int
 
@@ -147,3 +151,36 @@ canMakeFrom ingredient quantity r = catMaybes $ map mergedResults reactionList
                 left = ingredientsLeft have ingList
                 made = M.singleton i n
             in fmap (mergeIngredients made) left
+
+
+-- this function takes a "list" of ingredients (actually implemented as a HashMap), and returns a list
+-- of all outcomes from applying the above function to each ingredient
+canMakeFromMulti :: IngredientList -> Reactions -> [IngredientList]
+canMakeFromMulti m r = S.toList . S.fromList . concatMap expand $ M.keys m
+    where expand i = let Just q = M.lookup i m
+                         result = canMakeFrom i q r
+                         rest = M.filterWithKey (\k _ -> k /= i) m
+                     in map (mergeIngredients rest) result
+
+
+-- same as above, but recursive, repeating until nothing in the list can be further processed
+canMakeFromRecursive :: IngredientList -> Reactions -> [IngredientList]
+canMakeFromRecursive m r
+    | null reduction = [m]
+    | otherwise = S.toList . S.fromList $ concatMap (flip canMakeFromRecursive r) reduction
+    where reduction = canMakeFromMulti m r
+
+
+totalFuelFromOre :: Int -> Reactions -> Int
+totalFuelFromOre n = maximum . map readOre . canMakeFromRecursive (M.singleton "ORE" n)
+    where readOre m = fromMaybe 0 (M.lookup "FUEL" m)
+
+
+-- same problem as originally with part 1, exponential explosion of possibilities makes
+-- this totally impractical. Need a shortcut, presumably with "steps" again
+solvePart2 :: Reactions -> Int
+solvePart2 = totalFuelFromOre 1000000000000
+
+
+part2 :: IO Int
+part2 = puzzleData >>= return . solvePart2

@@ -3,14 +3,11 @@
 module Day19 where
 
 import Control.Monad.State
-import Data.List (isInfixOf)
-import Data.Maybe (catMaybes)
-import Data.Set (Set)
-import qualified Data.Set as S
+import Data.List (intersect, foldl1')
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO (readFile)
-import Data.Vector (Vector, (//), (!))
+import Data.Vector (Vector, (!))
 import qualified Data.Vector as V
 import Lens.Micro.Platform
 
@@ -173,28 +170,38 @@ quicker if we assume them. These are:
 -- THIS SOLUTION STILL HAS TERRIBLE PERFORMANCE, EVEN CALCULATING PulledInRow TAKES FOREVER!
 
 -- the following function takes a row and returns a pair consisting of the position of the leftmost
--- location that is pulled, and the number of consecutive blocks that are pulled
-pulledInRow :: Vector Integer -> Int -> (Int, Int)
-pulledInRow v r = (start, len)
+-- location that is pulled, and the number of consecutive blocks that are pulled.
+-- It also takes an offset to say where to start looking, this is to optimise when looking at
+-- several rows one after the other, and is based on one of the assumptions listed above.
+pulledInRow :: Vector Integer -> Int -> Int -> (Int, Int)
+pulledInRow v offset r = (start, len)
     where isValid x = feelsPull v (toInteger x) $ toInteger r
-          pulled = filter isValid [0..3*r]
+          pulled = takeWhile isValid $ dropWhile (not . isValid) [offset..3*r]
           -- arbitrary upper limit to stop infinite loop when the row is empty
           start = head pulled
           len = length pulled
 
 
+-- this function takes a row number and a size, and returns the list of possible column numbers
+-- where n consecutive locations, starting from there, are all pulled
+possibleStarts :: Vector Integer -> Int -> Int -> Int -> [Int]
+possibleStarts v r width offset = let (start, len) = pulledInRow v offset r in [start..start + len - width]
+
+
 -- this is the key function that takes the size of a square to fit and solve the puzzle for
--- such a square
+-- such a square. We use an arbitrary, but almost certainly valid, lower limit of 100,
+-- both to (barely noticeably) speed up the function, as well as to avoid problems with some
+-- early rows in which nothing is pulled.
 closestFit :: Vector Integer -> Int -> (Int, Int)
-closestFit v n = head $ filter (\l -> traceShow l $ works l) possibleAnswers
-    where start = fst . pulledInRow v
-          len = snd . pulledInRow v
-          longEnough r = len r >= n
-          possibleRows = dropWhile (not . longEnough) [100..]
-          -- arbitrary lower limit, but avoid early rows with nothing pulled
-          possibleInRow r = map (\x -> (x, r)) [start r..len r-n+1]
-          possibleAnswers = concatMap possibleInRow possibleRows
-          works (x, y) = all (\y' -> x >= start y' && x + n - 1 < start y' + len y') [y..y+n-1]
+closestFit v n = go 100
+    where nextOffset r = case possibleInRow (r - 1) of
+            [] -> 0
+            (c:_) -> c
+          possibleInRow 100 = possibleStarts v 100 n 0
+          possibleInRow r = traceShow r $ possibleStarts v r n $! nextOffset r
+          go m = case foldl1' intersect (map possibleInRow [m..m+n-1]) of
+                    [] -> go $ m + 1
+                    (c:_) -> (c, m)
 
 
 solvePart2 :: Vector Integer -> Int
